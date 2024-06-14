@@ -22,7 +22,6 @@ const userSchema= new  mongoose.Schema(
     },
     fullname:{
         type: String,
-        required : true,
         trim: true,
         index: true
     },
@@ -56,6 +55,7 @@ userSchema.pre("save", async function(next){
      if(!this.isModified("password")) return next() ;
 
     this.password = await  bcrypt.hash(this.password,10)
+  
       next();
 })
 
@@ -64,8 +64,8 @@ userSchema.methods.isPasswordCorrect = async function(password){
 }
 
 userSchema.methods.genrateAccessToken = function(){
-     
-    jwt.sign(
+    
+ return   jwt.sign(
         {
             _id:this._id,
             username: this.username,
@@ -82,7 +82,7 @@ userSchema.methods.genrateAccessToken = function(){
 
 userSchema.methods.genrateRefreshToken = function(){
      
-    jwt.sign(
+  return  jwt.sign(
         {
             _id:this._id,
         },

@@ -3,7 +3,7 @@ const ApiError = require('../utils/ApiError.js')
 const User = require('../models/user.models.js')
 const uploadOnCloudniary = require('../utils/cloudniary.js')
 const ApiResponse = require('../utils/ApiResponse.js')
-
+const jwt = require('jsonwebtoken')
 
 exports.registerUser = asyncHnadler(async (req,res) =>{ 
      
@@ -64,11 +64,11 @@ const genrateAccessAndRefreshTokens = async (userId) =>{
 
     try{
         const user = await User.findById(userId)
-        let accessToken =  user.genrateAccessToken()
-        let refreshToken = user.genrateRefreshToken() 
+        let accessToken =   user.genrateAccessToken()
+        let refreshToken =  user.genrateRefreshToken() 
 
         user.refreshToken = refreshToken ;
-        await user.save({ validateBeforeSave : true})
+        await user.save({ validateBeforeSave : false})
 
         return {accessToken,refreshToken}
 
@@ -80,8 +80,9 @@ const genrateAccessAndRefreshTokens = async (userId) =>{
 exports.loginUser = asyncHnadler(async(req,res) =>{
 
       const {username,email,password} = req.body 
+      
        
-      if(username || email){
+      if( !(username || email)){
         throw new ApiError(400,'username or email is required')
       }
     
@@ -93,15 +94,15 @@ exports.loginUser = asyncHnadler(async(req,res) =>{
         throw new ApiError(404,'User does not exist')
     }
 
-    const isPasswordValid = user.isPasswordCorrect(password)
+    const isPasswordValid = await user.isPasswordCorrect(password)
 
     if(!isPasswordValid){
         throw new ApiError(401,'Invalid user credentials')
     }
 
     const {accessToken,refreshToken} = await genrateAccessAndRefreshTokens(user._id)
-   
-    const loggedInUser = User.findById(user._id)
+
+    const loggedInUser = await User.findById(user._id)
                               .select("-password -refreshToken")
 
     const options = {
@@ -137,3 +138,39 @@ exports.logoutUser = asyncHnadler(async(req,res) =>{
             .clearCookie('refreshToken',options)
             .json(new ApiResponse(200,{},'User logged out'))
 })
+
+exports.refreshAccessToken = asyncHnadler(async(req,res)=>{
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+
+    if(!incomingRefreshToken){
+        throw new ApiError(401,"Invalid refresh token")
+    }
+
+    try {
+        const decodeToken  = jwt.verify(incomingRefreshToken,process.env.REFRESH_TOKEN_SECRET)
+    
+        const user = await User.findById(decodeToken?._id)
+    
+        if(user.refreshToken !== incomingRefreshToken){
+            throw new ApiError(401,'Refresh token is expired or used')
+        }
+    
+        const {accessToken,refreshToken} = genrateAccessAndRefreshTokens(user._id)
+    
+         const options = {
+            httpOnly: true,
+            secure : true
+         }
+        return res.status(200)
+               .cookie('accessToken',accessToken,options)
+               .cookie('refreshToken',refreshToken,options)
+               .json(new ApiResponse(
+                200,
+                {accessToken,refreshToken},
+                'Access token refreshed'
+               )) 
+    
+    } catch (error) {
+        throw new ApiError(401, error.message || 'Invalid refresh token')
+    }
+}) 

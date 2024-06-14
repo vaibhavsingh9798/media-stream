@@ -5,7 +5,10 @@ const User = require('../models/user.models')
 
 const verifyJWT = async (req,res,next) =>{
     try{
-        const token = req.cookies?.accessToken  || req.headers('Authorization')?.replace('Bearer ',"")
+   
+        const token = req.cookies?.accessToken  || req.header('Authorization')?.replace('Bearer ',"")
+
+        console.log("token...",token)
         if(!token){
             throw new ApiError(401,'Unauthorized request')
         }
@@ -19,4 +22,4 @@ const verifyJWT = async (req,res,next) =>{
     }
 }
 
-module.exports = verifyJWT ;
+module.exports = verifyJWT ;  
